@@ -1,4 +1,4 @@
-# mif-multisite-manager
+# mif-multisite-themes-and-plugins-manager
 
 WordPress plugin
 
