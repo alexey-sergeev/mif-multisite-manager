@@ -2,9 +2,9 @@
 /*
 Plugin Name: MIF Multisite Themes and Plugins Manager
 Plugin URI: https://github.com/alexey-sergeev/mif-multisite-themes-and-plugins-manager
-Description: Простой плагин для просмотра используемых тем и плагинов на сайтах сети WordPress
+Description: Simple plugin to view the used themes and plugins on the WordPress network sites
 Author: Alexey N. Sergeev
-Version: 1.0
+Version: 1.0.0
 Author URI: https://github.com/alexey-sergeev
 Multisite: true;
 */
