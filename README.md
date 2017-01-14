@@ -5,6 +5,7 @@ WordPress plugin
 View statistics on the use of themes and plugins in the WordPress network sites
 
 Capabilities:
+
 1. General statistics on the use of plugins and themes
 2. Statistics on unused plugins
 3. Statistics on the unused themes
