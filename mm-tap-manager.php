@@ -30,7 +30,65 @@ class MIF_Multisite_TAP_Manager {
     function sites_page()
     {
         $out = '<h1>' . __( 'Multisite Themes and Plugins Manager', 'mu-tap-manager' ) . '</h1>';
-        $out .= '<p>' . __( 'This page shows statistics on the use of themes and plug-ins on sites WordPress Multisite', 'mu-tap-manager' ) . '</p>';
+      
+        $tab = ( isset($_GET['tab']) ) ? $_GET['tab'] : 'sites';
+
+        $class_sites = ( $tab == 'sites' ) ? ' nav-tab-active' : '';
+        $class_themes = ( $tab == 'themes' ) ? ' nav-tab-active' : '';
+        $class_plugins = ( $tab == 'plugins' ) ? ' nav-tab-active' : '';
+
+        $out .= '<h2 class="nav-tab-wrapper wp-clearfix">
+			<a href="?page=multisite-tap-manager" class="nav-tab' . $class_sites . '">' . __( 'Sites', 'mu-tap-manager' ) . '</a>
+			<a href="?page=multisite-tap-manager&tab=themes" class="nav-tab' . $class_themes . '">' . __( 'Themes', 'mu-tap-manager' ) . '</a>
+			<a href="?page=multisite-tap-manager&tab=plugins" class="nav-tab' . $class_plugins . '">' . __( 'Plugins', 'mu-tap-manager' ) . '</a>
+		</h2>';
+
+        $out .= '<p>';
+
+        if ( $tab == 'sites' ) $out .= $this->on_sites();
+        if ( $tab == 'themes' ) $out .= $this->on_themes();
+
+        echo $out;
+    }
+
+
+    function on_themes()
+    {
+
+        $out .= '<p>' . __( 'This page displays themes and statistics on their use on sites WordPress Multisite', 'mu-tap-manager' ) . '</p>';
+
+        $out .= '<table class="widefat striped">
+        <thead><tr>
+        <th>' . __( 'Themes', 'mu-tap-manager' ) . '</th>
+        <th>' . __( 'Count', 'mu-tap-manager' ) . '</th>
+        <th>' . __( 'Sites', 'mu-tap-manager' ) . '</th>
+        </tr></thead><tbody>';
+
+        $themes = $this->get_themes_stat();
+        $themes_without_sites = array();
+        foreach ( $themes as $theme ) {
+            if ( $theme['count'] > 0 ) {
+                $out .= '<tr><td>' . $theme['theme'] . '</td><td>' . $theme['count'] . '</td><td>' . $theme['sites'] . '</td></tr>';
+            } else {
+                $themes_without_sites[] = $theme['theme'];
+            }
+        }
+
+        if ( $themes_without_sites ) $out .= '<tr><td>' . implode( '<br />', $themes_without_sites ) . '</td><td>0</td><td><span class="warning">' . __( 'No sites', 'mu-tap-manager' ) . '</span></td></tr>';
+
+        $sites_without_theme = $this->sites_without_theme();
+        if ( $sites_without_theme ) $out .= '<tr><td><span class="missing">' . __( 'No theme', 'mu-tap-manager' ) . '</span></td><td>' . count( $sites_without_theme ) . '</td><td>' . implode( '<br />', $sites_without_theme ) . '</td></tr>';
+
+        $out .= '</table>';
+
+        return $out;
+
+    }
+
+    function on_sites()
+    {
+
+        $out .= '<p>' . __( 'This page shows statistics on the use of themes and plugins on sites WordPress Multisite', 'mu-tap-manager' ) . '</p>';
 
         $out .= '<table class="widefat striped">
         <thead><tr>
@@ -41,13 +99,13 @@ class MIF_Multisite_TAP_Manager {
         </tr></thead><tbody>';
 
     	$network_plugins = $this->network_plugins();
-        $out .= '<tr><td><span class="network">' . __( 'Network Plugins', 'mu-tap-manager' ) . '</span></td><td>&mdash;</td><td>&mdash;</td><td>' . $network_plugins . '</td></tr>';
+        $out .= '<tr><td>' . __( 'All Network', 'mu-tap-manager' ) . '</td><td>&mdash;</td><td>&mdash;</td><td>' . $network_plugins . '</td></tr>';
 
         $sites = get_sites();
 
         foreach ( $sites as $site ) {
 
-            $permalink = $this->permalink( $site );
+            $permalink = $this->site_permalink( $site->blog_id );
             $themes = $this->themes( $site );
             $plugins = $this->plugins( $site );
             $out .= '<tr><td>' . $permalink . '</td><td>' . $site->blog_id . '</td><td>' . $themes . '</td><td>' . $plugins . '</td></tr>';
@@ -56,23 +114,97 @@ class MIF_Multisite_TAP_Manager {
         
         $unclaimed_plugins = $this->unclaimed_plugins();
         $unclaimed_themes = $this->unclaimed_themes();
-        $out .= '<tr><td><span class="unclamed">' . __( 'Unclaimed Themes and Plugins', 'mu-tap-manager' ) . '</span></td><td>&mdash;</td><td>' . $unclaimed_themes . '</td><td>' . $unclaimed_plugins . '</td></tr>';
-        
-        
-        
-        
-        // p($sites);
-
-
+        if ( $unclaimed_themes || $unclaimed_plugins ) $out .= '<tr><td><span class="unclamed">' . __( 'No site', 'mu-tap-manager' ) . '</span></td><td>&mdash;</td><td>' . $unclaimed_themes . '</td><td>' . $unclaimed_plugins . '</td></tr>';
 
         $out .= '</table>';
 
-        echo $out;
+        return $out;
     }
 
-    protected function permalink( $site )
+
+    protected function get_themes_stat()
     {
-        return '<a href="' . get_site_url( $site->blog_id ) . '">' . $site->domain . $site->path . '</a>';
+
+        $sites = get_sites();
+
+        $all_themes_raw = wp_get_themes();
+
+        $index = array();
+        foreach ( (array) $all_themes_raw as $key => $value ) $index[$key] = array();
+
+        foreach ( $sites as $site ) {
+            $arr = $this->get_themes( $site->blog_id );
+            foreach ( (array) $arr as $item ) $index[$item][] = $site->blog_id;
+        }
+        
+        uasort( $index, array( $this, 'cmp' ) );
+        
+        $themes = array();
+        foreach ( $index as $key => $value ) {
+
+            $arr = array();
+            foreach ( (array) $value as $item ) $arr[] = $this->site_permalink( $item );
+
+            $sites = implode( '<br />', $arr );
+
+            $themes[] = array( 'theme' => $key, 'count' => count( $value ), 'sites' => $sites );
+
+        }
+
+        return $themes;
+    }
+
+
+    protected function cmp( $a, $b )
+    {
+        if ( count( $a ) == count( $b ) ) return 0;
+        if ( count( $a ) > count( $b ) ) return -1;
+        if ( count( $a ) < count( $b ) ) return 1;
+    }
+
+
+    protected function sites_without_theme() 
+    {
+        $arr = array();
+        $sites_ids = $this->get_sites_without_theme();
+        foreach ( (array) $sites_ids as $item ) $arr[] = $this->site_permalink( $item );
+        return $arr;
+    }
+
+
+    protected function get_sites_without_theme() 
+    {
+        $all_themes_raw = wp_get_themes();
+
+        $themes = array();
+        foreach ( (array) $all_themes_raw as $key => $value ) $themes[] = $key;
+
+
+        $sites = get_sites();
+        $sites_without_theme = array();
+
+        foreach ( $sites as $site ) {
+            $arr = $this->get_themes( $site->blog_id );
+            foreach ( (array) $arr as $item ) {
+                if ( ! in_array( $item, $themes ) ) {
+                    $sites_without_theme[] = $site->blog_id;
+                    break;
+                }
+            }
+                
+        }
+
+        return $sites_without_theme;
+    }
+
+
+
+
+    protected function site_permalink( $site_id )
+    {
+        $site = get_blog_details( $site_id );
+
+        return '<a href="' . $site->siteurl . '">' . $site->domain . $site->path . '</a>';
     }
 
 
