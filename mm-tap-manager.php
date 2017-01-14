@@ -22,12 +22,12 @@ class MIF_Multisite_TAP_Manager {
 
     function register_menu_page()
     {
-        add_submenu_page( 'network-tools', __( 'Themes and Plugins Manager', 'mu-manager' ), __( 'Themes and Plugins Manager', 'mu-manager' ), 'manage_options', 'multisite-tap-manager', array( $this, 'sites_page' ) );
+        add_submenu_page( 'network-tools', __( 'Themes and Plugins Manager', 'mu-manager' ), __( 'Themes and Plugins Manager', 'mu-manager' ), 'manage_options', 'multisite-tap-manager', array( $this, 'page' ) );
         wp_register_style( 'multisite-tap-manager-style', plugins_url( '/styles.css', __FILE__ ) );
         wp_enqueue_style( 'multisite-tap-manager-style' );  
     }
 
-    function sites_page()
+    function page()
     {
         $out = '<h1>' . __( 'Multisite Themes and Plugins Manager', 'mu-tap-manager' ) . '</h1>';
       
@@ -47,8 +47,40 @@ class MIF_Multisite_TAP_Manager {
 
         if ( $tab == 'sites' ) $out .= $this->on_sites();
         if ( $tab == 'themes' ) $out .= $this->on_themes();
+        if ( $tab == 'plugins' ) $out .= $this->on_plugins();
 
         echo $out;
+    }
+
+
+    function on_plugins()
+    {
+
+        $out .= '<p>' . __( 'This page displays plugins and statistics on their use on sites WordPress Multisite', 'mu-tap-manager' ) . '</p>';
+
+        $out .= '<table class="widefat striped">
+        <thead><tr>
+        <th>' . __( 'Plugins', 'mu-tap-manager' ) . '</th>
+        <th>' . __( 'Count', 'mu-tap-manager' ) . '</th>
+        <th>' . __( 'Sites', 'mu-tap-manager' ) . '</th>
+        </tr></thead><tbody>';
+
+        $plugins = $this->get_plugins_stat();
+        $plugins_without_sites = array();
+        foreach ( $plugins as $plugin ) {
+            if ( $plugin['count'] > 0 ) {
+                $out .= '<tr><td>' . $plugin['plugin'] . '</td><td>' . $plugin['count'] . '</td><td>' . $plugin['sites'] . '</td></tr>';
+            } else {
+                $plugins_without_sites[] = $plugin['plugin'];
+            }
+        }
+
+        if ( $plugins_without_sites ) $out .= '<tr><td>' . implode( '<br />', $plugins_without_sites ) . '</td><td>0</td><td><span class="warning">' . __( 'No sites', 'mu-tap-manager' ) . '</span></td></tr>';
+
+        $out .= '</table>';
+
+        return $out;
+
     }
 
 
@@ -84,6 +116,7 @@ class MIF_Multisite_TAP_Manager {
         return $out;
 
     }
+
 
     function on_sites()
     {
@@ -155,6 +188,43 @@ class MIF_Multisite_TAP_Manager {
     }
 
 
+    protected function get_plugins_stat()
+    {
+
+        $sites = get_sites();
+
+        $all_plugins_raw = get_plugins();
+
+        $index = array();
+        foreach ( (array) $all_plugins_raw as $key => $value ) $index[$key] = array();
+
+        foreach ( $sites as $site ) {
+            $arr = $this->get_plugins( $site->blog_id );
+            foreach ( (array) $arr as $item ) $index[$item['plugin']][] = $site->blog_id;
+        }
+
+    	$network_plugins = $this->get_network_plugins();
+        foreach ( (array) $network_plugins as $item ) $index[$item['plugin']][] = -1;
+
+        uasort( $index, array( $this, 'cmp' ) );
+        
+        // p($index);
+        $plugins = array();
+        foreach ( $index as $key => $value ) {
+
+            $arr = array();
+            foreach ( (array) $value as $item ) $arr[] = $this->site_permalink( $item );
+
+            $sites = implode( '<br />', $arr );
+
+            $plugins[] = array( 'plugin' => $this->get_clean_plugin_name( $key ), 'count' => count( $value ), 'sites' => $sites );
+
+        }
+
+        return $plugins;
+    }
+
+
     protected function cmp( $a, $b )
     {
         if ( count( $a ) == count( $b ) ) return 0;
@@ -202,6 +272,8 @@ class MIF_Multisite_TAP_Manager {
 
     protected function site_permalink( $site_id )
     {
+        if ( $site_id == -1 ) return __( 'All network', 'mu-tap-manager' );
+        
         $site = get_blog_details( $site_id );
 
         return '<a href="' . $site->siteurl . '">' . $site->domain . $site->path . '</a>';
