@@ -1,0 +1,20 @@
+.missing, .network, .unclamed {
+    display: inline-block;
+    padding: 5px;
+    margin: 1px 0;
+    border-radius: 5px;
+}
+
+.missing {
+    background-color: #ffc2cc;
+}
+
+.network {
+    background-color: #bbffbb;
+}
+
+.unclamed {
+    background-color: #ffff99;
+}
+
+
